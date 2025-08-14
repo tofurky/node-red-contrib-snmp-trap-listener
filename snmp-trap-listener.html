@@ -11,8 +11,8 @@
             snmpV1: { value: true },
             snmpV2: { value: true },
             snmpV3: { value: true },
-            communities: { value: [{ community: "" }] },
-            users: {
+            snmp_communities: { value: [{ community: "" }] },
+            snmp_users: {
                 value: [
                     {
                         name: "",
@@ -25,6 +25,7 @@
             },
             ipfilter: { value: "" },
             ipmask: { value: "" },
+            schema: 2,
         },
         inputs: 0,
         outputs: 1,
@@ -247,8 +248,8 @@
                 );
             });
 
-            for (let i = 0; i < this.communities.length; i++) {
-                let community = this.communities[i];
+            for (let i = 0; i < this.snmp_communities.length; i++) {
+                let community = this.snmp_communities[i];
                 generateCommunity(i + 1, community);
             }
 
@@ -557,8 +558,8 @@
                 );
             });
 
-            for (let i = 0; i < this.users.length; i++) {
-                let user = this.users[i];
+            for (let i = 0; i < this.snmp_users.length; i++) {
+                let user = this.snmp_users[i];
                 generateUser(i + 1, user);
             }
 
@@ -572,24 +573,24 @@
             let node = this;
             node.formValue = {};
 
-            let communities = $("#node-input-community-container").children();
-            node.communities = [];
-            communities.each(function (i) {
+            let snmp_communities = $("#node-input-community-container").children();
+            node.snmp_communities = [];
+            snmp_communities.each(function (i) {
                 let community = $(this);
-                // communities: {value:[{community:""}]},
+                // snmp_communities: {value:[{community:""}]},
                 let o = {
                     community: community
                         .find(".node-input-community-value")
                         .val(),
                 };
-                node.communities.push(o);
+                node.snmp_communities.push(o);
             });
 
-            let users = $("#node-input-user-container").children();
-            node.users = [];
-            users.each(function (i) {
+            let snmp_users = $("#node-input-user-container").children();
+            node.snmp_users = [];
+            snmp_users.each(function (i) {
                 let user = $(this);
-                // users: {value:[{name:"", authProtocol:"", authKey:"", privProtocol:"", privKey:""}]},
+                // snmp_users: {value:[{name:"", authProtocol:"", authKey:"", privProtocol:"", privKey:""}]},
                 let o = {
                     name: user.find(".node-input-user-name").val(),
                     authProtocol: user
@@ -601,7 +602,7 @@
                         .val(),
                     privKey: user.find(".node-input-user-privKey").val(),
                 };
-                node.users.push(o);
+                node.snmp_users.push(o);
             });
         },
     });

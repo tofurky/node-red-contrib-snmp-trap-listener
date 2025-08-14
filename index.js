@@ -7,7 +7,7 @@ snmpTrapListener(null, {
     snmpV1: true,
     snmpV2: true,
     snmpV3: true,
-    communities: [
+    snmp_communities: [
         {
             community: "tip",
         },
@@ -18,7 +18,7 @@ snmpTrapListener(null, {
             community: "top",
         },
     ],
-    users: [
+    snmp_users: [
         {
             name: "titi",
             authProtocol: "none",
@@ -43,4 +43,5 @@ snmpTrapListener(null, {
     ],
     ipfilter: "",
     ipmask: "",
+    schema: 2,
 });
