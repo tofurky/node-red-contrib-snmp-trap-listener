@@ -11,8 +11,8 @@
             snmpV1: { value: true },
             snmpV2: { value: true },
             snmpV3: { value: true },
-            communities: { value: [{ community: "" }] },
-            users: {
+            snmp_communities: { value: [{ community: "" }] },
+            snmp_users: {
                 value: [
                     {
                         name: "",
@@ -25,6 +25,7 @@
             },
             ipfilter: { value: "" },
             ipmask: { value: "" },
+            schema: { value: undefined },
         },
         inputs: 0,
         outputs: 1,
@@ -34,6 +35,30 @@
         },
         oneditprepare: function () {
             let node = this;
+
+            // If an existing node has no schema set yet, it signifies to us that newer node-red versions (>= 4.1.0) won't allow us to directly read key portions of the existing node config, which will lead to blank SNMPv3 fields in the editor.
+            // Saving it then erases the SNMPv3 users that were in the old, presumably working config.
+            // We can work around the restriction placed on the old 'users' property by adding a temporary endpoint that allows us to fetch it directly from the flow.
+            // See https://github.com/ItsEcholot/node-red-contrib-snmp-trap-listener/issues/25 for details.
+            if (node._config && (!node.schema || node.schema < 2)) {
+                $.ajax({
+                    url: "snmp-trap-listener/migration/" + node.id,
+                    type: "GET",
+                    async: false, // this needs to block, as the missing data we're fetching is *normally* accessible immediately
+                    success: function (data) {
+                        node.snmp_users = data.snmp_users;
+                        node.snmp_communities = data.snmp_communities;
+
+                        RED.nodes.dirty(true);
+                        RED.notify("snmp-trap-listener node has been automatically updated to the latest schema; deploy to save changes.");
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        if (jqXHR.status !== 404) {
+                            console.warn("Failed to fetch migration data for snmp-trap-listener: ", textStatus);
+                        }
+                    }
+                });
+            }
 
             let tabs = RED.tabs.create({
                 id: "node-input-snmp-trap-tabs",
@@ -247,8 +272,8 @@
                 );
             });
 
-            for (let i = 0; i < this.communities.length; i++) {
-                let community = this.communities[i];
+            for (let i = 0; i < this.snmp_communities.length; i++) {
+                let community = this.snmp_communities[i];
                 generateCommunity(i + 1, community);
             }
 
@@ -557,8 +582,8 @@
                 );
             });
 
-            for (let i = 0; i < this.users.length; i++) {
-                let user = this.users[i];
+            for (let i = 0; i < this.snmp_users.length; i++) {
+                let user = this.snmp_users[i];
                 generateUser(i + 1, user);
             }
 
@@ -572,24 +597,24 @@
             let node = this;
             node.formValue = {};
 
-            let communities = $("#node-input-community-container").children();
-            node.communities = [];
-            communities.each(function (i) {
+            let snmp_communities = $("#node-input-community-container").children();
+            node.snmp_communities = [];
+            snmp_communities.each(function (i) {
                 let community = $(this);
-                // communities: {value:[{community:""}]},
+                // snmp_communities: {value:[{community:""}]},
                 let o = {
                     community: community
                         .find(".node-input-community-value")
                         .val(),
                 };
-                node.communities.push(o);
+                node.snmp_communities.push(o);
             });
 
-            let users = $("#node-input-user-container").children();
-            node.users = [];
-            users.each(function (i) {
+            let snmp_users = $("#node-input-user-container").children();
+            node.snmp_users = [];
+            snmp_users.each(function (i) {
                 let user = $(this);
-                // users: {value:[{name:"", authProtocol:"", authKey:"", privProtocol:"", privKey:""}]},
+                // snmp_users: {value:[{name:"", authProtocol:"", authKey:"", privProtocol:"", privKey:""}]},
                 let o = {
                     name: user.find(".node-input-user-name").val(),
                     authProtocol: user
@@ -601,8 +626,10 @@
                         .val(),
                     privKey: user.find(".node-input-user-privKey").val(),
                 };
-                node.users.push(o);
+                node.snmp_users.push(o);
             });
+
+            node.schema = 2;
         },
     });
 </script>

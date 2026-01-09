@@ -73,6 +73,34 @@ module.exports = (RED, debugSettings) => {
         return false;
     }
 
+    // Ensure the migration endpoint is registered only once, even if there are multiple nodes.
+    var migrationEndpointRegistered = false;
+    function registerMigrationEndpoint(n) {
+        if (migrationEndpointRegistered) {
+            return;
+        }
+
+        migrationEndpointRegistered = true;
+
+        n.log("Registering migration endpoint");
+
+        RED.httpAdmin.get(
+            "/snmp-trap-listener/migration/:id",
+            RED.auth.needsPermission("snmp-trap-listener.read"),
+            function (req, res) {
+                var node = RED.nodes.getNode(req.params.id);
+                if (node && node.migrate_snmp) {
+                    res.json({
+                        snmp_users: node.migrate_snmp_users,
+                        snmp_communities: node.migrate_snmp_communities
+                    });
+                } else {
+                    res.status(404).send();
+                }
+            },
+        );
+    }
+
     function snmpTrapListener(config) {
         if (RED) {
             RED.nodes.createNode(this, config);
@@ -117,6 +145,29 @@ module.exports = (RED, debugSettings) => {
             };
         }
 
+        // node-red >= 4.1.0 restricts the use of the 'node.users' property, so it has been moved to snmp_users
+        if (!config.schema || config.schema < 2) {
+            if (config.users && !config.snmp_users)
+                config.snmp_users = config.users;
+
+            if (config.communities && !config.snmp_communities)
+                config.snmp_communities = config.communities;
+
+            delete config.users;
+            delete config.communities;
+
+            if (RED) {
+                node.migrate_snmp = true;
+                node.migrate_snmp_users = config.snmp_users;
+                node.migrate_snmp_communities = config.snmp_communities;
+
+                node.warn("Saved configuration for this node is using obsolete field names and will be migrated to the new schema on next redeploy");
+
+                // Set up an admin HTTP endpoint that allows the editor to fetch these now-restricted properties
+                registerMigrationEndpoint(node);
+            }
+        }
+
         // Add a timeout to reset the status to green after x time (ms)
         let timeoutStatus;
 
@@ -141,7 +192,7 @@ module.exports = (RED, debugSettings) => {
         // Default options
         var options = {
             port: parseInt(config.port, 10),
-            disableAuthorization: !config.communities && !config.users,
+            disableAuthorization: !config.snmp_communities && !config.snmp_users,
             engineID: "8000B98380XXXXXXXXXXXX", // where the X's are random hex digits
             transport: "udp4",
         };
@@ -315,10 +366,10 @@ module.exports = (RED, debugSettings) => {
         node.log("Listening for traps on port: " + config.port);
         let authorizer = node.receiver.getAuthorizer();
         if (config.snmpV1 || config.snmpV2) {
-            let communities = config.communities || [];
+            let snmp_communities = config.snmp_communities || [];
 
-            communities.forEach((communitie) => {
-                let community = communitie.community;
+            snmp_communities.forEach((snmp_community) => {
+                let community = snmp_community.community;
                 if (community !== "") {
                     node.log("Adding Community: " + community);
                     authorizer.addCommunity(community);
@@ -328,8 +379,8 @@ module.exports = (RED, debugSettings) => {
             });
         }
         if (config.snmpV3) {
-            let users = config.users || [];
-            users.forEach((user) => {
+            let snmp_users = config.snmp_users || [];
+            snmp_users.forEach((user) => {
                 if (
                     user.name !== "" &&
                     (user.authProtocol === "none" || user.authKey !== "") &&
